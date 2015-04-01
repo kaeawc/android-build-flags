@@ -1,0 +1,129 @@
+apply plugin: 'com.android.application'
+
+def BOOLEAN = "boolean"
+def TRUE = "true"
+def FALSE = "false"
+
+def getPropertiesFromAssetFile(flavor, filePath) {
+
+    def assetFile = file("src/${flavor}/assets/${filePath}")
+    assert assetFile.exists()
+    def assetProperties = new Properties()
+    assetProperties.load(new FileInputStream(assetFile))
+    return assetProperties
+}
+
+def getBuildStringProperties(flavor) {
+
+    def airship = getPropertiesFromAssetFile(flavor, "airshipconfig.properties")
+    def pubnub = getPropertiesFromAssetFile(flavor, "pubnub.properties")
+    def webservice = getPropertiesFromAssetFile(flavor, "webservice.properties")
+    def mixpanel = getPropertiesFromAssetFile("main", "mixpanel.properties")
+    def newrelic = getPropertiesFromAssetFile("main", "newrelic.properties")
+    def appsee = getPropertiesFromAssetFile("main", "appsee.properties")
+    def adjust = getPropertiesFromAssetFile("main", "adjust.properties")
+
+    def buildProperties = new Properties()
+
+    buildProperties.setProperty("gcm", airship.getProperty("gcmSender"))
+    buildProperties.setProperty("mixpanelDevToken", mixpanel.getProperty("devToken"))
+    buildProperties.setProperty("mixpanelProdToken", mixpanel.getProperty("prodToken"))
+    buildProperties.setProperty("pubnubSubChannel", pubnub.getProperty("pubnubSubChannel"))
+    buildProperties.setProperty("pubnubPubChannel", pubnub.getProperty("pubnubPubChannel"))
+    buildProperties.setProperty("host1", webservice.getProperty("host1"))
+    buildProperties.setProperty("host2", webservice.getProperty("host2"))
+    buildProperties.setProperty("appseeApikey", appsee.getProperty("apikey"))
+    buildProperties.setProperty("newrelicDevToken", newrelic.getProperty("devToken"))
+    buildProperties.setProperty("newrelicProdToken", newrelic.getProperty("prodToken"))
+    buildProperties.setProperty("adjustAppToken", adjust.getProperty("token"))
+    return buildProperties
+}
+
+import java.text.SimpleDateFormat;
+
+// Gets the current time in UTC
+def buildTime() {
+
+    def df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm'Z'")
+    df.setTimeZone(TimeZone.getTimeZone("UTC"))
+    return df.format(new Date())
+}
+
+// Gets the current date in UTC
+def buildDate() {
+
+    def gradlePropertiesFile = rootProject.file('gradle.properties')
+    def gradleProperties = new Properties()
+    gradleProperties.load(new FileInputStream(gradlePropertiesFile))
+
+    def manualBuildTime = gradleProperties.getProperty("build_date")
+    if (manualBuildTime != null)
+        return manualBuildTime
+
+    def df = new SimpleDateFormat("yyyy-MM-dd")
+    df.setTimeZone(TimeZone.getTimeZone("UTC"))
+    return df.format(new Date())
+}
+
+def gradlePropertiesFile = rootProject.file('gradle.properties')
+def gradleProperties = new Properties()
+gradleProperties.load(new FileInputStream(gradlePropertiesFile))
+
+def gitTag = {
+    "git describe --tags --exact HEAD".execute().text.trim()
+}()
+def gitHash = "git rev-parse --short HEAD".execute().text.trim()
+
+def hasModifiedDeletedOrOtherFiles = !"git ls-files -mdo --exclude-standard".execute().text.trim().isEmpty()
+def hasStagedFiles = !"git diff-index --no-ext-diff --name-only --cached HEAD".execute().text.trim().isEmpty()
+def dirtyWorkingCopy = hasModifiedDeletedOrOtherFiles || hasStagedFiles
+def gitDescription = dirtyWorkingCopy ? "${gitHash}-dirty" : gitHash
+
+// Version name: ignore leading non-digits and everything after the first underscore
+// Version code: take digits after the first underscore
+// e.g. tag xxx1.2.3.foo-bar_15_baz will yield versionName 1.2.3.foo-bar and versionCode 15
+def versionMatcher = gitTag =~ /^[^0-9]*([^_]*)(_([0-9]*))?/
+def headTag = versionMatcher[0][1]
+println("current tag: ${headTag}")
+def semVerTag = headTag =~ /^([0-9]+\.){3}?/
+boolean builtWithTaggedCommit = headTag?.trim()
+boolean builtOnTravis = "true".equals(System.getenv("TRAVIS"))
+boolean releaseCandidate = builtWithTaggedCommit && builtOnTravis
+boolean isPlayStoreRelease = semVerTag.equals(headTag) && releaseCandidate
+
+def buildVersionName = gradleProperties.getProperty("versionName")
+int buildVersionCode = gradleProperties.getProperty("versionCode").toInteger()
+
+android {
+    compileSdkVersion 22
+    buildToolsVersion "22.0.1"
+
+    defaultConfig {
+        applicationId "io.kaeawc.buildflags"
+        minSdkVersion 15
+        targetSdkVersion 22
+        versionName buildVersionName
+        versionCode buildVersionCode
+
+        buildConfigField "String", "GIT_DESCRIPTION", "\"${gitDescription}\""
+        buildConfigField "String", "VERSION", "\"${versionName} ${gitDescription}\""
+        buildConfigField "String", "GIT_SHA", "\"${gitHash}\""
+        buildConfigField "String", "BUILD_TIME", "\"${buildTime()}\""
+        buildConfigField "String", "BUILD_DATE", "\"${buildDate()}\""
+        buildConfigField BOOLEAN, "BUILT_WITH_TAG", "${builtWithTaggedCommit}"
+        buildConfigField BOOLEAN, "BUILT_ON_TRAVIS", "${builtOnTravis}"
+        buildConfigField BOOLEAN, "RELEASE_CANDIDATE", "${releaseCandidate}"
+        buildConfigField BOOLEAN, "PLAY_STORE_RELEASE", "${isPlayStoreRelease}"
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+dependencies {
+    compile fileTree(dir: 'libs', include: ['*.jar'])
+    compile 'com.android.support:appcompat-v7:22.0.0'
+}
