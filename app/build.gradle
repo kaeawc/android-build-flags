@@ -85,11 +85,16 @@ def gitDescription = dirtyWorkingCopy ? "${gitHash}-dirty" : gitHash
 def versionMatcher = gitTag =~ /^[^0-9]*([^_]*)(_([0-9]*))?/
 def headTag = versionMatcher[0][1]
 println("current tag: ${headTag}")
-def semVerTag = headTag =~ /^([0-9]+\.){3}?/
+def semVerTag = (headTag =~ /^(\d\.\d\.\d)?/)[0][1]
 boolean builtWithTaggedCommit = headTag?.trim()
-boolean builtOnTravis = "true".equals(System.getenv("TRAVIS"))
+boolean builtOnTravis = TRUE
 boolean releaseCandidate = builtWithTaggedCommit && builtOnTravis
 boolean isPlayStoreRelease = semVerTag.equals(headTag) && releaseCandidate
+
+println("builtWithTaggedCommit: ${builtWithTaggedCommit}")
+println("builtOnTravis: ${builtOnTravis}")
+println("releaseCandidate: ${releaseCandidate}")
+println("isPlayStoreRelease: ${isPlayStoreRelease}")
 
 def buildVersionName = gradleProperties.getProperty("versionName")
 int buildVersionCode = gradleProperties.getProperty("versionCode").toInteger()
