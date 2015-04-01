@@ -4,16 +4,16 @@ This app has a single activity that shows how you can parse the current git tag 
 
 Without a git tag:
 
-![Without Tag](/img/no_tag.jpg)
+![Without Tag](/img/no_tag.png)
 
 With a git tag:
 
-![With Tag](/img/with_tag.jpg)
+![With Tag](/img/with_tag.png)
 
 Built on Travis with a git tag:
 
-![On Travis with Tag](/img/on_travis.jpg)
+![On Travis with Tag](/img/on_travis.png)
 
 Built on Travis with a git tag following strict Semantic Versioning:
 
-![Semantic Versioning on Travis](/img/sem_ver_on_travis.jpg)
+![Semantic Versioning on Travis](/img/sem_ver_on_travis.png)
